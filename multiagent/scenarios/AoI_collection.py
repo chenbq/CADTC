@@ -15,6 +15,7 @@ config = {
     'd_max':10,
     'noise': np.power(10, -100/10),
     'P_ref': 500*np.power(10, -37.6/10),# -37.6 reference at 1m loss,
+    'S_data': 0.01/20.0,# normalized data ： data size 0.01M / bandwidth=20M
     'alpha': -2,
     'height': 50, #m,
     'p_los_B': 0.35,
@@ -154,6 +155,14 @@ class Scenario(BaseScenario):
         n_access_UE = acc_mat.sum(0)  # number of users access to a given UAV
         # sum_data_rate_lst = []
 
+        # parameters
+        noise = config.noise
+        P_ref = config.P_ref
+        alpha = config.alpha
+        height = config.height
+        p_los_B = config.p_los_B
+        p_los_C = config.p_los_C
+        data_size = config.S_data
 
         #lambda_AoI = 0 0.2 0.4 0.6 0.8 1.0
         lambda_AoI = self.lambda_AoI
@@ -161,7 +170,19 @@ class Scenario(BaseScenario):
         # record for evaluation
         AoI_list = np.zeros(len(world.landmarks))
         for idx_l, l in enumerate(world.landmarks):
-
+            data_rate = 0
+            if n_access_UAV[idx_l] > 0:
+                # find the serving UAV index
+                idx_a = np.where(acc_mat[idx_l, :] == 1.0)[0]
+                if len(idx_a)>1:
+                    idx_a = idx_a[np.argmin(dis_mat[idx_l, idx_a])]
+                dist = np.sqrt(np.square(dis_mat[idx_l, idx_a]) + np.square(height))
+                # compute the channel with given distanc
+                P_los_pro = 1.0 / (  1.0 + p_los_C* np.exp(-p_los_B*( 180/np.pi*np.arctan(height/dist) - p_los_C) )  )
+                channel_loss = P_los_pro* np.power(10, -3/10) + (1-P_los_pro)* np.power(10, -23/10)
+                signal = P_ref*np.power(dist,alpha)*channel_loss
+                # sum_data_rate_lst.append(np.log2(1 + signal / noise))
+                data_rate = np.log2(1 + signal / noise)/float(n_access_UE[idx_a])
 
             if l.state.reward_calc_n == 0:
                 #l.state.n_count += 1
@@ -169,7 +190,10 @@ class Scenario(BaseScenario):
                     # find the serving UAV index
                     idx_a = np.where(acc_mat[idx_l, :] == 1.0)[0]
                     # record the sev
-                    l.state.n_count =  int(1)
+                    if data_rate>data_size:
+                        l.state.n_count =  int(1)
+                    else:
+                        l.state.n_count += int(1)
                 else:
                     l.state.n_count += int(1)
             l.state.reward_calc_n += 1
