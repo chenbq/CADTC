@@ -12,3 +12,6 @@ The critic network and the policy module in actor network are implemented by the
 
 1. To train the model. run main.py
    The hyper-parameters can be set as in /configs/xxx.txt
+
+### Technical Details
+https://github.com/chenbq/CADTC/blob/main/Details%20instructions%20for%20CADTC.pdf
